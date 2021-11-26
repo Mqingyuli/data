@@ -1,4 +1,4 @@
-# git
+git
 
 [toc]
 
@@ -56,8 +56,8 @@ git push -u origin main
 /*
 1.添加到本地仓库 git add .
 2.添加提交描述 git commi -m "提交"
-3.gitpull origin master   //master 分支名
-4.git push -u origin master
+3.git pull origin master   //master 分支名
+4.git push -u origin master //master 分支名
 */
 ```
 
