@@ -1,6 +1,19 @@
+
+
 # 目录
 
 [toc]
+
+## 头文件
+
+```c
+//RTOS头文件        #include "FreeRTOS.h"
+//任务函数头文件     #include "task.h"
+//队列头文件        #include "queue.h"
+//信号量互斥量头文件 #include"semphr.h"
+```
+
+
 
 ## 1.任务调度
 
@@ -194,10 +207,127 @@ BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 返回值：pdPASS  发送成功 pdTRUE和pdPASS均是发送成功宏定义
 */
 //例子一：
-if(pdPASS == xQueueReceiveFromISR(xTaskhandle1W5500,&eSetBits, &xHigherPriorityTaskWoken ));
+if(pdPASS == xQueueReceiveFromISR(xQueue,&buf, &xHigherPriorityTaskWoken ));
 //例子二：
-if(pdPASS == xQueueReceiveFromISR(xTaskhandle1W5500,&eSetBits, NULL ));
+if(pdPASS == xQueueReceiveFromISR(xQueue,&buf, NULL ));
 ```
 
-***
+###  4.4注意事项
+
+```c
+/*
+1.中断发送读取必须在中断函数中 优先级参数可设置为NULL
+2.中断只需要设置一次尽量不要放在任务函数中
+3.任务函数的接收无论是接受中断发送的还是普通发送都只能使用普通接收函数
+*/
+```
+
+*****
+
+## 5.信号量
+
+### 5.1创建信号量
+
+#### 5.1.1创建二值型信号量
+
+```c
+//声明二值信号量句柄
+SemaphoreHandle_t xSemaphore;
+/* 创建二值型信号量 旧版创建*/
+// 返回值NULL: 二值信号量创建失败。
+vSemaphoreCreateBinary(xSemaphore);
+
+/* 创建二值型信号量 新版创建*/
+// 返回值NULL: 二值信号量创建失败。
+xSemaphore = xSemaphoreCreateBinary();
+```
+
+#### 5.1.2创建计数信号量
+
+```c
+/*函数原型
+返回值：NULL表示创建失败
+参数一：信号量可以计数的最大值
+参数二：计数初始值
+*/
+xSemaphoreCreateCounting( UBaseType_t uxMaxCount,
+                                            UBaseType_t uxInitialCount);
+//例如：
+//声明计数信号量句柄
+xSemaphoreHandle xSemaphore;
+// 信号量可以计数的最大值为10,计数初始值为0.
+xSemaphore = xSemaphoreCreateCounting( 10, 0 );
+if( xSemaphore != NULL )
+{
+    // 信号量创建成功
+    // 现在可以使用信号量了。
+}
+```
+
+#### 5.1.3创建互斥量
+
+```c
+//函数原型  返回值为NULL表示创建失败 互斥量不可在中断服务函数中使用
+SemaphoreHandle_t xSemaphoreCreateMutex( void );
+//例如：
+//声明互斥信号量句柄
+SemaphoreHandle_t xSemaphore;
+/* 创建一个互斥类型的信号量。*/
+xSemaphore = xSemaphoreCreateMutex();
+
+if( xSemaphore != NULL )
+{
+    /* 信号量创建成功并且
+       可以使用。*/
+}
+```
+
+### 5.2释放信号量
+
+```c
+/****普通任务释放信号量****/
+/*
+返回值: 成功返回：pdPASS 失败返回：err_QUEUE_FULL
+参数：要释放的信号量句柄
+不可在中断服务中使用该函数
+*/
+xSemaphoreGive(xSemaphore );
+/*******中断释放信号量*******/
+/*
+返回值：成功返回：pdPASS 失败返回：err_QUEUE_FULL
+参数一：要释放的信号量句柄
+参数二：如果*pxHigherPriorityTaskWoken为pdTRUE，则需要在中断退出前人为的经行一次上下文切换。从FreeRTOS V7.3.0开始，该参数为可选参数，并可以设置为NULL
+*/
+xSemaphoreGiveFromISR( SemaphoreHandle_t xSemaphore,BaseType_t *pxHigherPriorityTaskWoken );
+```
+
+### 5.3获取信号量
+
+```c
+/*****普通获取信号量******/
+/*
+返回值：失败返回：pdFALSE 成功返回：pdPASS
+参数一：要获取的信号量句柄
+参数二：阻塞时间，信号量无效时等待时间  
+为portMAX_DELAY则一直阻塞无限等待；设置0表示不设置等待时间
+*/
+ xSemaphoreTake( SemaphoreHandle_t xSemaphore, TickType_t xTicksToWait );
+/****中断获取信号量****/
+/*
+返回值：失败返回：pdFALSE 成功返回：pdPASS
+参数一：要获取的信号量
+参数二：用户只需要提供一 个变量来保存这个值就行了；7.3.0可设置为NULL
+*/
+xSemaphoreTakeFromISR( SemaphoreHandle_t xSemaphore,signed BaseType_t *pxHigherPriorityTaskWoken );
+```
+
+### 5.4注意事项
+
+```c
+/*
+1.互斥信号量必须由同一个任务申请，同一个任务释放，其他任务释放无效
+2.二值型信号量，一个任务申请成功后可以由另一个任务释放
+3.互斥信号量必须归还
+*/
+```
 
