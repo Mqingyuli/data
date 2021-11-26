@@ -16,5 +16,7 @@
 
 [nRF5 SDK资料([nRF5 SDK v17.0.2: Introduction](file:///D:/eclipse-workspace/nRF5_SDK_17.0.2_offline_doc/nrf5/index.html))]
 
+[nRF52832基础实验([NRF52832DK基础实验 - 谷雨文档中心 (iotxx.com)](http://doc.iotxx.com/NRF52832DK基础实验))]
+
 ## 2. 工作
 
