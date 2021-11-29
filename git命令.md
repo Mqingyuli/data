@@ -7,17 +7,21 @@ git
 # 1.git账号
 
 ```c
-//账号
+//github账号
 //Mqingyuli
 //密码
 //1314520.lss
+/**************/
+//gitee账号
+//2458745242@qq.com
+//密码
+//1314520lss
+
 ```
 
 
 
 # 2.git命令
-
-
 
 ```c
 
@@ -46,10 +50,14 @@ git log --graph   查看分支合并图
 # 3.git链接库
 
 ```c
-//资料库  https://github.com/Mqingyuli/data.git
+//github资料库  https://github.com/Mqingyuli/data.git
+//gitee资料库   https://gitee.com/qing-yuxiao/li_demo.git 
 //git上传到云端
 /*
+//github资料库
 git remote add origin https://github.com/Mqingyuli/data.git
+//gitee资料库
+git remote add origin https://gitee.com/qing-yuxiao/li_demo.git
 git branch -M main 
 git push -u origin main
 */
@@ -58,6 +66,24 @@ git push -u origin main
 2.添加提交描述 git commi -m "提交"
 3.git pull origin master   //master 分支名
 4.git push -u origin master //master 分支名
+*/
+```
+
+# 4.git删除库
+
+```c
+/*
+方法1：更换git远程仓库地址
+ 1.查看当前remotes
+      git remote -v
+ 2.修改remotes   
+      git remote set-url origin https://github.com/test/test.git 
+
+方法2：重置git远程仓库地址
+ 1.删除当前地址
+      git remote rm origin
+ 2.新增地址
+      git remote add origin https://github.com/test/test.git 
 */
 ```
 
