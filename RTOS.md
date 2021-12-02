@@ -1,5 +1,3 @@
-
-
 # 目录
 
 [toc]
@@ -65,9 +63,12 @@ void app_task1(void *pvParameters)//void类型 参数为void *
 /* 开启任务调度 */
 vTaskStartScheduler();
 ```
+### 1.5删除任务
 
-------
-
+```c
+//删除任务  例如初始化任务函数
+ vTaskDelete(Start_Task_Handle);
+```
 
 
 ## 2.挂起恢复
@@ -181,7 +182,7 @@ unsigned long pxMessage;
 // 接收消息
 // 参数 1 : 队列句柄
 // 参数 2 ： 队列内容返回保存指针
-// 参数 3 ： 允许阻塞时间
+// 参数 3 ： 允许阻塞时间  portMAX_DELAY一直等待
 //pdTRUE表示接收到了消息
 if( pdTRUE == xQueueReceive( xQueue, &( pxMessage ), ( TickType_t ) 10 ) )
 /****************中断接收消息***********************/
@@ -321,7 +322,18 @@ xSemaphoreGiveFromISR( SemaphoreHandle_t xSemaphore,BaseType_t *pxHigherPriority
 xSemaphoreTakeFromISR( SemaphoreHandle_t xSemaphore,signed BaseType_t *pxHigherPriorityTaskWoken );
 ```
 
-### 5.4注意事项
+### 5.4对其他信号量的操作
+
+```c
+/* 查询信号量的数目 */
+UBaseType_t uxSemaphoreGetCount( SemaphoreHandle_t xSemaphore );
+/* 查询拥有互斥锁的任务句柄 */
+TaskHandle_t xSemaphoreGetMutexHolder( SemaphoreHandle_t xMutex );
+```
+
+
+
+### 5.5注意事项
 
 ```c
 /*
@@ -329,5 +341,96 @@ xSemaphoreTakeFromISR( SemaphoreHandle_t xSemaphore,signed BaseType_t *pxHigherP
 2.二值型信号量，一个任务申请成功后可以由另一个任务释放
 3.互斥信号量必须归还
 */
+```
+
+*****
+
+## 6.软件定时器
+
+### 6.1初始化软件定时器
+
+```c
+//创建定时器句柄
+TimerHandle_t timer_handle;
+//函数原型
+//参数一：定时器名称方便识别不同的定时器
+//参数二：定时多长时间
+//参数三：选择周期模式还是单次模式，若参数为pdTRUE，则表示选择周期模式，若参数为pdFALSE，则表示选择单次模式。
+//参数四：定时器id，可选NULL
+//参数五：定时器结束调用的回调函数
+TimerHandle_t xTimerCreate(	
+	const char * const pcTimerName,	 //定时器名称（调试用）
+	const TickType_t xTimerPeriodInTicks,//周期（单位tick）
+	const UBaseType_t uxAutoReload,//自动装载（pdTURE）
+	void * const pvTimerID,//定时器ID，可以判断是哪一个定时器
+	TimerCallbackFunction_t pxCallbackFunction //回调函数
+)
+//示例
+timer_handle = xTimerCreate("timer_handle", ms2ticks(5000), pdFALSE, NULL, timer_handle_timeout);
+```
+
+### 6.2回调函数
+
+```c
+//定时器回调函数
+//参数固定
+void timer_handle_timeout(TimerHandle_t xTimer);
+//示例
+void timer_handle_timeout(TimerHandle_t xTimer)
+{
+    //要执行的代码
+}
+```
+
+### 6.3软件定时器启动
+
+```c
+//成功pdPASS，队列已满pdFAIL
+//参数二：为portMAX_DELAY则一直阻塞无限等待；设置0表示不设置等待时间 
+BaseType_t xTimerStart(
+	TimerHandle_t xTimer,//定时器句柄
+	TickType_t xToclsToWait//阻塞等待时间（内部是消息队列）
+)
+//示例
+xTimerStart(timer_handle,0);
+```
+
+### 6.4重启软件定时器
+
+```c
+//重启软件定时器
+//如果定时器已经启动，重新计算时间
+//如果没有启动，则启动
+//参数二：为portMAX_DELAY则一直阻塞无限等待；设置0表示不设置等待时间 
+BaseType_t xTimerReset(
+	TimerHandle_t xTimer,//定时器句柄
+	TickType_t xToclsToWait//阻塞等待时间（内部是消息队列）
+)
+//示例：
+xTimerReset(timer_handle,0);
+```
+
+### 6.5获取定时器ID
+
+```C
+//获取定时器ID pvTimerGetTimerID()
+void* pvTimerGetTimerID(TimerHandle_t xTimer);
+//示例
+pvTimerGetTimerID(timer_handle);
+```
+
+### 6.6更改定时器周期
+
+```c
+//如果定时器没启动，会启动定时器
+//参数二：定时多长时间
+//参数三：为portMAX_DELAY则一直阻塞无限等待；设置0表示不设置等待时间 
+BaseType_t xTimerChangePeriod(
+	TimerHandle_t xTimer,//定时器句柄
+	TickType_t xMew{eropd,//新的定时周期
+	TickType_t xToclsToWait//阻塞等待时间
+)
+//示例
+xTimerChangePeriod)(timer_handle, 1000, 0);
 ```
 
