@@ -67,7 +67,9 @@ git push -u origin main
 /*
 1.添加到本地仓库 git add .
 2.添加提交描述 git commi -m "提交"
+//拉取远程分支
 3.git pull origin master   //master 分支名
+//上传远程分支
 4.git push -u origin master //master 分支名
 */
 ```
