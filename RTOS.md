@@ -433,4 +433,25 @@ BaseType_t xTimerChangePeriod(
 //示例
 xTimerChangePeriod)(timer_handle, 1000, 0);
 ```
+## 7.任务通知
+### 7.1发送通知
+```c
+//参数一：任务句柄
+//参数二：忽略
+//参数三：忽略
+BaseType_t xTaskNotify( TaskHandle_txTaskToNotify,  
+                           uint32_t ulValue,  
+                           eNotifyAction eAction); 
+//宏替换函数：xTaskNotifyGive(TaskHandle_txTaskToNotify);  
+//示例：
+/*向prvTask2(),发送通知，使其解除阻塞状态 */  
+ xTaskNotifyGive( xTask2 );  
+```
+### 7.2接收通知
+```c
+/* 等待prvTask2()的通知，进入阻塞 */  
+ulTaskNotifyTake( pdTRUE, portMAX_DELAY);  
+```
+
+
 
