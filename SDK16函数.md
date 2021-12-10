@@ -1,4 +1,4 @@
-# SDK16函数
+# DK16函数
 
 [toc]
 
@@ -14,13 +14,33 @@
 /*
 1.lora的发送和接受产生的中断都是dio1 配置更改需要更改寄存器
 2.发送结束需要延时一会否则会错误
-3.
+3.睡眠模式后需要片选引脚才能唤醒 或者定时器唤醒
+4.lora的配置要根据标准配置不能乱配置
+5.sx1268的传输功率最大22 官方手册如下图
+6.影响到接收是否正确的配置有 
+**********
+  global.sx1268.modulation_params.PacketType = SX126X_PACKET_TYPE_LORA; //传输类型
+  global.sx1268.modulation_params.Params.LoRa.Bandwidth = SX126X_LORA_BW_250;/宽带设置
+  global.sx1268.modulation_params.Params.LoRa.CodingRate = SX126X_LORA_CR_4_5;//编码速率
+  global.sx1268.modulation_params.Params.LoRa.LowDatarateOptimize = 0;//速率优化开关
+  global.sx1268.modulation_params.Params.LoRa.SpreadingFactor = LORA_SF7;
+
+  global.sx1268.packet_params.PacketType = SX126X_PACKET_TYPE_LORA;//数据包类型
+  global.sx1268.packet_params.Params.LoRa.HeaderType = SX126X_LORA_PACKET_IMPLICIT;//隐式头
+  global.sx1268.packet_params.Params.LoRa.CrcMode = SX126X_LORA_CRC_ON;//CRC校验码
+  global.sx1268.packet_params.Params.LoRa.PayloadLength = 49;//数据长度  
+  global.sx1268.packet_params.Params.LoRa.InvertIQ = SX126X_LORA_IQ_NORMAL;/iq配置
+  global.sx1268.packet_params.Params.LoRa.PreambleLength = 8;//前导码长度
+**********
+7.发送超时可能因为没有打开优化速率开关global.sx1268.modulation_params.Params.LoRa.LowDatarateOptimize = 0;
+8.sx1268的数据长度影响接收，但sx1280的数据长度不影响接收但是需要配置数据包
+9.lora如果两个芯片共用一个spi两个芯片的发送同一时间
 */
 ```
 
+![1638931272(1)](E:\Records\资料图片\1638931272(1).jpg)
 
-
-### 1.1lora发送
+### 1.1 lora（sx1268）发送
 
 #### 流程图
 
@@ -36,8 +56,9 @@
 4.中断处理任务函数接收到消息队列，再把数据发送给sx126x_dio1_process官方函数处理
 5.sx126x_dio1_process判断是发送成功还是超时；发送成功调用tx_done函数发送失败调用timeout函数
 6.tx_done成功则发送任务通知
-7.task_lora_tx等待任务通知，等待时间自定，到时没有tx_done则不会收到任务通知则发送失败，发送失败调用sx126x_init()再初始化,发送成功延时100ms
-8.释放申请的空间调用vPortFree()函数
+7.task_lora_tx等待任务通知，等待时间自定，到时没有tx_done则不会收到任务通知则发送失败，发送失败调用sx126x_init()再初始化,
+8.释放申请的空间调用vPortFree()函数，然后将指针指向NULL
+9.发送成功必须延时2ms，否则数据会错乱
 */
 ```
 
@@ -76,7 +97,7 @@ void task_lora_tx_li(void *arg)
         if (ret_code == 1)
         {
             //发送成功，延时一会释放cpu
-           vTaskDelay(ms2ticks(100));
+           vTaskDelay(ms2ticks(2));
         }
         else
         {
@@ -239,7 +260,7 @@ void lora_tx_done()
 {
   //发送任务通知
   xTaskNotifyGive(global.task_handle_lora_tx_li);
-  // 发送完成后进入sleep模式，降低功耗
+  // 发送完成后进入sleep模式，降低功耗 启动时为热启动
   sx126x_set_sleep_warm_start(&global.sx1268);
   NRF_LOG_INFO("SX1268 tx done.");
 }
@@ -257,11 +278,11 @@ void lora_tx_timeout()
 
 
 
-### 1.2lora接收
+### 1.2lora（sx1268）接收
 
 #### 流程图
 
-![1638845917(1)](E:\Records\资料图片\1638845917(1).jpg)
+![1638930317(1)](E:\Records\资料图片\1638930317(1).jpg)
 
 #### 1.2.1lora发送函数调用过程
 
@@ -271,7 +292,10 @@ void lora_tx_timeout()
 2.中断处理函数往消息队列发消息
 3.中断处理任务函数接收到消息
 4.获取当前时间，把消息扔给sx126x_dio1_process处理
-5.成功则调用rxDone，超时则调用rxTimeout
+5.成功则调用txDone，超时则调用txTimeout
+6.然后设置为接收模式
+7.如果tx_timeout则初始化一次
+8.无论接收成功与否都要释放申请的buf内存
 */
 ```
 #### 1.2.2 lora发送配置函数
@@ -318,25 +342,123 @@ bool sx126x_init(sx126x_dev *dev);
 void sx126x_tx(sx126x_dev *dev, uint8_t* data, uint16_t len, uint32_t timeout_ms);
 //sx1268读取
 void sx126x_rx(sx126x_dev *dev, uint32_t timeout_ms);
-
+//如果是睡眠模式则唤醒
 void sx126x_check_device_ready( sx126x_dev *dev );
-
-/*!
-   * \brief Saves the payload to be send in the radio buffer
-   *
-   * \param [in]  payload       A pointer to the payload
-   * \param [in]  size          The size of the payload
-   */
+//保存要发送到无线电缓冲区的有效载荷  
 void sx126x_set_payload( sx126x_dev *dev, uint8_t *payload, uint8_t size );
-
-/*!
-   * \brief Reads the payload received. If the received payload is longer
-   * than maxSize, then the method returns 1 and do not set size and payload.
-   *
-   * \param [out] payload       A pointer to a buffer into which the payload will be copied
-   * \param [out] size          A pointer to the size of the payload received
-   * \param [in]  maxSize       The maximal size allowed to copy into the buffer
-   */
+//读取收到的有效载荷
 uint8_t sx126x_get_payload( sx126x_dev *dev, uint8_t *payload, uint8_t *size, uint8_t maxSize );
+//发送有效载荷
+void sx126x_send_payload( sx126x_dev *dev, uint8_t *payload, uint8_t size, uint32_t timeout );
+//设置睡眠热启动 配置保留配置保留
+void sx126x_set_sleep_warm_start (sx126x_dev *dev);
+//设置睡眠冷启动 重新创建
+void sx126x_set_sleep_cold_start (sx126x_dev *dev);
+//设置睡眠模式
+void sx126x_set_sleep( sx126x_dev *dev, SX126X_SleepParams_t sleepConfig );
+//设置待机模式 SX126X_STDBY_RC为待机模式
+void sx126x_set_standby( sx126x_dev *dev, SX126X_RadioStandbyModes_t mode );
+//读取寄存器中的值
+void sx126x_read_registers( sx126x_dev *dev, uint16_t address, uint8_t *buffer, uint16_t size );
+//指示是否使用DIO2控制射频开关  参数二在初始化配置的时候选择  
+void sx126x_set_dio2_as_rf_switch_ctrl( sx126x_dev *dev, uint8_t enable );
+//设置功率调节器的工作模式 不设置默认仅使用LDO意味着Rx或Tx电流加倍  
+void sx126x_set_regulator_mode( sx126x_dev *dev, SX126X_RadioRegulatorMode_t mode );
+//为传输和接收设置数据缓冲基地地址 默认发送读取地址都为0x00
+void sx126x_set_buffer_base_address( sx126x_dev *dev, uint8_t txBaseAddress, uint8_t rxBaseAddress );
+//设置传输参数 参数二发射功率配置时设置  参数三功率放大器斜坡时间
+void sx126x_set_tx_params( sx126x_dev *dev, int8_t power, RadioRampTimes_t rampTime );
+//设置中断寄存器 
+void sx126x_set_dio_irq_params( sx126x_dev *dev, uint16_t irqMask, uint16_t dio1Mask, uint16_t dio2Mask, uint16_t dio3Mask );
+//决定哪个中断将停止内部无线电rx定时器 fasle报头/同步字检测后定时器停止
+void sx126x_set_stop_rx_timer_on_preamble_detect( sx126x_dev *dev, bool enable );
+```
+
+### 2.1lora （sx1280）的发送
+
+```c
+/*
+注释：
+数据可以通过信号量来传递给任务处理函数
+*/
+```
+
+```c
+//任务处理函数
+//设置1280的lora数据长度为需要发送的数据长度
+sx1280_1.packet_params.Params.LoRa.PayloadLength = msg.len;
+//重新配置lora的数据包，主要是配置长度避免浪费时间 如果每次的长度都是初始化配置好的这两步可忽略
+sx128x_set_packet_params(&sx1280_1, &sx1280_1.packet_params);
+//发送数据包 sx1280TickTime参数需定义
+sx128x_send_payload(&sx1280_1, msg.buf, msg.len, sx1280TickTime);
+//等待发送完成 释放信号量
+xSemaphoreTake(global.semphore_sx1280_1_tx_done, ms2ticks(1000));
+```
+
+```c
+/*然后发送数据包会正常会触发TX中断*/
+/*触发中断，发送消息给中断任务函数处理*/
+```
+
+```c
+//获取中断事件
+sx1280irq_status = sx128x_get_irq_status(&sx1280_1);
+//获取最后接收到的包有效载荷长度
+sx128x_get_packet_status(&sx1280_1, &sx1280_1.packet_status);
+//清除中断事件
+sx128x_clear_irq_status(&sx1280_1, SX128X_IRQ_RADIO_ALL);
+```
+
+```c
+/*判断中断事件是否是写事件*/
+((sx1280irq_status & SX128X_IRQ_TX_DONE) == SX128X_IRQ_TX_DONE)
+```
+
+```c
+/*如果是写事件则释放信号量给任务处理函数表示写完了，然后再设置为读模式*/
+xSemaphoreGive(global.semphore_sx1280_1_tx_done);
+sx128x_set_rx(&sx1280_1, sx1280TickTime);
+```
+
+### 2.2 lora（sx1280）的接收
+
+```c
+//获取中断事件
+sx1280irq_status = sx128x_get_irq_status(&sx1280_1);
+//获取最后接收到的包有效载荷长度
+sx128x_get_packet_status(&sx1280_1, &sx1280_1.packet_status);
+//清除中断事件
+sx128x_clear_irq_status(&sx1280_1, SX128X_IRQ_RADIO_ALL);
+```
+
+```c
+/*判断中断事件是否是读事件*/
+((sx1280irq_status & SX128X_IRQ_RX_DONE) == SX128X_IRQ_RX_DONE)
+```
+
+```c
+/*因为不获取上一次接收数据包的缓存状态就会在现有的地址上覆盖，可能会导致数据丢失，
+获取最后接收数据包缓存区状态可以保证不会出现数据丢失的情况*/
+```
+
+```c
+/*获取最后接收的数据包缓冲区状态*/
+//函数原型 参数二：数据包的长度  参数三：上次接收的数据包缓冲区地址指针
+void sx128x_get_rx_nuffer_status (sx128x_dev *dev, uint8_t *payloadLength,
+                              uint8_t *rxStartBufferPointer)
+sx128x_get_rx_nuffer_status(&sx1280_1, &tempsize, &tempoffset);
+```
+
+```c
+/*获取数据：函数原型*/
+//参数二：获取到的数据的存放地址 参数三：指向获取到的数据长度的地址  参数四：最大的长度
+uint8_t sx128x_get_payload (sx128x_dev *dev, uint8_t *buffer, uint8_t *size,
+                            uint8_t maxSize)
+//方法一：不固定存放地址，这样可以避免出现数据丢失
+//参数二：数组中的tempoffset是上一步获取的值，这样就不会出现参数覆盖的现象
+sx128x_get_payload(&sx1280_1, &payload_buff[tempoffset], &payload_buffer_size, 10);
+//方法二：固定存放地址，这样如果数据过多会出现丢失现象
+//参数二：存放数据的地址  参数四：数据的最大长度，这里可以使用上面获取到的数据包的长度或者是初始化时定义的数据长度
+sx128x_get_payload(&sx1280_1, payload_buff, &payload_buffer_size, 10);
 ```
 

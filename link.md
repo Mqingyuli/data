@@ -20,3 +20,10 @@
 
 
 
+![image-20211208140732505](C:\Users\18151\AppData\Roaming\Typora\typora-user-images\image-20211208140732505.png)
+
+![image-20211208141128332](C:\Users\18151\AppData\Roaming\Typora\typora-user-images\image-20211208141128332.png)
+
+![image-20211208141611212](C:\Users\18151\AppData\Roaming\Typora\typora-user-images\image-20211208141611212.png)
+
+![image-20211209085904321](C:\Users\18151\AppData\Roaming\Typora\typora-user-images\image-20211209085904321.png)
