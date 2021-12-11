@@ -393,9 +393,33 @@ BaseType_t xTimerStart(
 )
 //示例
 xTimerStart(timer_handle,0);
+//中断中启动软件定时器
+BaseType_t xTimerStartFromISR( TimerHandle_t xTimer, BaseType_t *pxHigherPriorityTaskWoken )
+//示例
+//成功pdPASS，队列已满pdFAIL
+BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+xTimerStartFromISR( xBacklightTimer, &xHigherPriorityTaskWoken )
 ```
 
-### 6.4重启软件定时器
+### 6.4软件定时器停止
+
+```c
+//成功pdPASS，队列已满pdFAIL
+//停止计时器让其进入休眠
+BaseType_t xTimerStop( TimerHandle_t xTimer, 
+                      TickType_t xBlockTime )
+//示例
+    
+//在中断中停止计时器
+BaseType_t xTimerStopFromISR( TimerHandle_t xTimer, BaseType_t *pxHigherPriorityTaskWoken )  
+//示例
+BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+xTimerStopFromISR(xTimer,&xHigherPriorityTaskWoken)
+```
+
+
+
+### 6.5重启软件定时器
 
 ```c
 //重启软件定时器
@@ -410,7 +434,7 @@ BaseType_t xTimerReset(
 xTimerReset(timer_handle,0);
 ```
 
-### 6.5获取定时器ID
+### 6.6获取定时器ID
 
 ```C
 //获取定时器ID pvTimerGetTimerID()
@@ -419,7 +443,7 @@ void* pvTimerGetTimerID(TimerHandle_t xTimer);
 pvTimerGetTimerID(timer_handle);
 ```
 
-### 6.6更改定时器周期
+### 6.7更改定时器周期
 
 ```c
 //如果定时器没启动，会启动定时器
@@ -452,6 +476,211 @@ BaseType_t xTaskNotify( TaskHandle_txTaskToNotify,
 /* 等待prvTask2()的通知，进入阻塞 */  
 ulTaskNotifyTake( pdTRUE, portMAX_DELAY);  
 ```
+## 8. 时间函数
+### 8.1 延时函数
+```c
+//函数原型 vTaskDelay()
+//相对延时 延时时间可能跟时间设定时间不同 要考虑优先级
+void vTaskDelay(const TickType_t xTicksToDelay ); /* 延迟时间长度 */
+//示例：vTaskDelay(500);
+//绝对延时 vTaskDelayUntil()
+//参数一：存储任务上次处于非阻塞状态时刻的变量地址 
+//参数二：周期性延迟时间
+//注意：使用此函数需要在 FreeRTOSConfig.h 配置文件中配置如下宏定义为 1
+// #define INCLUDE_vTaskDelayUntil 1
+void vTaskDelayUntil( TickType_t *pxPreviousWakeTime, 
+					  const TickType_t xTimeIncrement );
+//示例：
+//设置存储系统时间的变量
+TickType_t xLastWakeTime;
+//获取当前系统时间
+xLastWakeTime = xTaskGetTickCount();
+/* vTaskDelayUntil是绝对延迟，vTaskDelay是相对延迟。*/
+vTaskDelayUntil(&xLastWakeTime, 100);
+```
+### 8.2 获取时钟
+```c
+//在任务中获取时间节拍数
+volatile TickType_t xTaskGetTickCount( void );
+//在中断中获取时间节拍数
+volatile TickType_t xTaskGetTickCountFromISR( void );
+```
+
+## 9. 事件标志组
+
+### 注意事项
+
+```c
+/*
+同时要在 FreeRTOSConfig.h
+文件中使能如下三个宏定义：
+#define INCLUDE_xEventGroupSetBitFromISR 1
+#define configUSE_TIMERS 1
+#define INCLUDE_xTimerPendFunctionCall 1
+*/
+```
+
+### 9.1 创建事件标志组
+```c
+//创建事件标志组 内存自动分配
+//返回值为NULL创建失败
+EventGroupHandle_t xEventGroupCreate( void )
+//创建事件标志组 内存自己分配
+//参数：指向一个StaticEventGroup_t类型的变量，用来保存时间组结构体
+//返回值为NULL创建失败    
+EventGroupHandle_t xEventGroupCreateStatic( StaticEventGroup_t *pxEventGroupBuffer )
+//示例：
+//创建事件标志组句柄    
+EventGroupHandle_t EventGroupHandle;    // 事件标志组句柄
+//创建事件标志组
+EventGroupHandle =  xEventGroupCreate(); 
+if(NULL == EventGroupHandle)
+{
+    printf("创建任务事件组失败");
+}
+```
+
+### 9.2 设置标志位
+
+```c
+/*
+标志位代表某个事件的状况
+*/
+//示例：
+// 定义事件位
+#define BIT_0    (1<<0)
+#define BIT_1    (1<<1)
+#define BIT_2    (1<<2)   //后面还有其他事件可以此类推加最多24
+```
+
+### 9.3 设置事件位
+
+```c
+/*
+所有设置事件位函数成功返回：pdPASS
+　　            失败返回：pdFALSE：
+*/
+```
 
 
+
+#### 9.3.1任务函数清零
+
+```c
+//函数原型：
+//参数一：事件标志组句柄
+//参数二：置零的事件位
+EventBits_t xEventGroupClearBits( EventGroupHandle_t xEventGroup, 
+                                  const EventBits_t uxBitsToClear )
+//示例：
+//将事件标志组中的BIT_0 置零
+xEventGroupSetBits(EventGroupHandle,BIT_0);
+```
+
+#### 9.3.2 中断清零
+
+```c
+//函数原型：
+//参数一：事件标志组句柄
+//参数二：置零的事件位
+BaseType_t xEventGroupClearBitsFromISR( EventGroupHandle_t xEventGroup, 
+                                        const EventBits_t uxBitsToSet ) 
+//示例：
+//将事件标志组中的BIT_0 置零
+xEventGroupClearBitsFromISR(EventGroupHandle,BIT_1);
+```
+
+#### 9.3.3任务函数置一
+
+```c
+//函数原型：
+//参数一：事件标志组句柄
+//参数二：置一的事件位
+EventBits_t xEventGroupSetBits( EventGroupHandle_t xEventGroup, /* 事件标志组句柄 */
+								const EventBits_t uxBitsToSet ); /* 事件标志位设置 */
+//示例：
+//将事件标志组中的BIT_0 置一
+xEventGroupSetBits(EventGroupHandle,BIT_2);
+```
+
+#### 9.3.4中断置一
+
+```c
+//函数原型：
+//参数一：事件标志组句柄
+//参数二：置一的事件位
+//参数三：标记退出此函数以后是否进行任务切换
+BaseType_t xEventGroupSetBitsFromISR( EventGroupHandle_t xEventGroup, 
+                                      const EventBits_t uxBitsToSet, 
+                                      BaseType_t *pxHigherPriorityTaskWoken )
+//示例：
+//将事件标志组中的BIT_0 置一
+BaseType_t pxHigherPriorityTaskWoken = pdFALSE;
+BaseType_t xResult;
+xResult = xEventGroupSetBitsFromISR(EventGroupHandle,BIT_2,&pxHigherPriorityTaskWoken);
+if(xResult == pdPASS)
+{
+    //如果发送成功 判断是否有高优先级任务准备就绪，如果有则高优先级
+    portYLELD_FROM_ISR(pxHigherPriorityTaskWoken);
+}
+```
+
+### 9.4 获取事件标志组值
+
+#### 9.4.1任务函数获取
+
+```c
+//函数原型
+EventBits_t xEventGroupGetBits( EventGroupHandle_t xEventGroup )
+//示例：
+//创建存储变量
+EventBits_t uxBits;
+uxBits = xEventGroupGetBits(EventGroupHandle);
+```
+
+#### 9.4.2 中断中获取
+
+```c
+//任务原型
+EventBits_t xEventGroupGetBitsFromISR( EventGroupHandle_t xEventGroup )
+//示例：
+//创建存储变量
+EventBits_t uxBits;
+uxBits = xEventGroupGetBitsFromISR(EventGroupHandle);
+```
+
+### 9.5 等待事件
+
+```c
+//函数原型： 只能在任务函数中调用
+//参数二：标志位可设置多个用或例如：BIT_0 | BIT_1
+//参数三：等待结束是否将等待的标志位置零 置零则 pdTRUE 不置零则 pdFALSE
+//参数四：是否等待所有的标志位被设置 等待则所有事件触发才等待成功 与或 pdFALSE为不等待有一个事件触发则返回 pdTRUE则等待所有事件触发
+//参数五：等待时间portMAX_DELAY则一直等待
+//返回值：为触发的事件
+EventBits_t xEventGroupWaitBits(const EventGroupHandle_t xEventGroup, /* 事件标志组句柄 */
+                                const EventBits_t uxBitsToWaitFor, /* 等待被设置的事件标志位 */
+                                const BaseType_t xClearOnExit, /* 选择是否清零被置位的事件标志位 */
+                                const BaseType_t xWaitForAllBits, /* 选择是否等待所有标志位都被设置 */
+                                TickType_t xTicksToWait ); /* 设置等待时间 */
+//示例：
+//定义存储触发事件的变量
+EventBits_t uxBits;
+//等待事件函数
+//等待EventGroupHandle中的BIT_0或者BIT_1触发 一直等待 触发以后则将该BIT位置零
+uxBits = xEventGroupWaitBits(EventGroupHandle,
+							BIT_0 | BIT_1,//等待bit0和bit1（与同步） 等待bit0或bit1置1（或同步）
+							pdTRUE,
+							pdFALSE,//或同步，只要其中一个bit置1，就直接返回
+							portMAX_DELAY//一直等待
+							);
+//示例二：
+//等待EventGroupHandle中的BIT_0和BIT_1触发 两个触发则返回 一直等待 触发以后则将该BIT位置零
+uxBits = xEventGroupWaitBits(EventGroupHandle,
+							BIT_0 | BIT_1,//等待bit0和bit1（与同步） 等待bit0或bit1置1（或同步）
+							pdTRUE,
+							pdTRUE,//或同步，只要其中一个bit置1，就直接返回
+							portMAX_DELAY//一直等待
+							);
+```
 
