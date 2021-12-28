@@ -5,15 +5,53 @@
 ## 头文件
 
 ```c
-//RTOS头文件        #include "FreeRTOS.h"
-//任务函数头文件     #include "task.h"
-//队列头文件        #include "queue.h"
-//信号量互斥量头文件 #include"semphr.h"
+//RTOS头文件         #include "FreeRTOS.h"
+//任务函数头文件      #include "task.h"
+//队列头文件         #include "queue.h"
+//信号量互斥量头文件  #include"semphr.h"
 ```
 
+## 使用建议
 
+```c
+/*
+1.每个任务函数中最好不要耦合性太强
+2.每个任务函数可以通过信号量、消息队列、事件标志组来通信，可以降低耦合度，减少出错率
+*/
+```
 
-## 1.任务调度
+## 1.任务函数
+
+```c
+/*
+ FreeRTOS 的任务可认为是一系列独立任务的集合。每个任务在自己的环境中运行。在任何时刻，只有一个任务得到运行，FreeRTOS 调度器决定运行哪个任务。调度器会不断的启动、停止每一个任务，宏观看上去所有的任务都在同时在执行。作为任务，不需要对调度器的活动有所了解，在任务切入切出时保存上下文环境（寄存器值、堆栈内容）是调度器主要的职责。为了实现这点，每个 FreeRTOS 任务都需要有自己的栈空间。
+ FreeRTOS 中的任务是抢占式调度机制，高优先级的任务可打断低优先级任务，低优先级任务必须在高优先级任务阻塞或结束后才能得到调度。同时 FreeRTOS 也支持时间片轮转调度方式，只不过时间片的调度是不允许抢占任务的 CPU 使用权。
+任务通常会运行在一个死循环中，也不会退出，如果一个任务不再需要，可以调用FreeRTOS 中的任务删除 API 函数接口显式地将其删除。
+*/
+```
+
+![1639198574(1)](E:\Records\资料图片\1639198574(1).jpg)
+
+```c
+/*
+任务状态迁移
+FreeRTOS 系统中的每一个任务都有多种运行状态
+
+(1)：创建任务→就绪态（Ready）：任务创建完成后进入就绪态，表明任务已准备就绪，随时可以运行，只等待调度器进行调度。
+
+(2)：就绪态→运行态（Running）：发生任务切换时，就绪列表中最高优先级的任务被执行，从而进入运行态。
+
+(3)：运行态→就绪态：有更高优先级任务创建或者恢复后，会发生任务调度，此刻就绪列表中最高优先级任务变为运行态，那么原先运行的任务由运行态变为就绪态，依然在就绪列表中，等待最高优先级的任务运行完毕继续运行原来的任务（此处可以看做是 CPU 使用权被更高优先级的任务抢占了）。
+
+(4)：运行态→阻塞态（Blocked）：正在运行的任务发生阻塞（挂起、延时、读信号量等待）时，该任务会从就绪列表中删除，任务状态由运行态变成阻塞态，然后发生任务切换，运行就绪列表中当前最高优先级任务。
+
+(5)：阻塞态→就绪态：阻塞的任务被恢复后（任务恢复、延时时间超时、读信号量超时或读到信号量等），此时被恢复的任务会被加入就绪列表，从而由阻塞态变成就绪态；如果此时被恢复任务的优先级高于正在运行任务的优先级，则会发生任务切换，将该任务将再次转换任务状态，由就绪态变成运行态。
+
+(6) (7) (8)：就绪态、阻塞态、运行态→挂起态（Suspended）：任务可以通过调用 vTaskSuspend() API 函数都可以将处于任何状态的任务挂起，被挂起的任务得不到CPU 的使用权，也不会参与调度，除非它从挂起态中解除。
+
+(9)：挂起态→就绪态：把 一 个 挂 起 状态 的 任 务 恢复的 唯 一 途 径 就 是调 用 vTaskResume() 或 vTaskResumeFromISR() API 函数，如果此时被恢复任务的优先级高于正在运行任务的优先级，则会发生任务切换，将该任务将再次转换任务状态，由就绪态变成运行态。
+*/
+```
 
 ### 1.1声明任务句柄
 
@@ -26,11 +64,25 @@ TaskHandle_t app_task1_handle=NULL;//要声明任务句柄
 ### 1.2创建任务
 
 ```c
+//任务原型
+//参数一：任务函数名
+//参数二：任务的名字测试用 同任务函数名一样即可
+//参数三：分配给任务函数的堆栈大小
+//参数四：传递给任务函数的参数 没有可为NULL
+//参数五：任务优先级0~configMAX_PRIORITIES-1 优先级越小优先级越高
+//参数六：任务句柄 
+BaseType_t xTaskCreate(TaskFunction_t pxTaskCode,
+                       const char * const pcName,
+                       const uint16_t usStackDepth,
+                       void * const pvParameters,
+                       UBaseType_t uxPriority,
+                       TaskHandle_t * const pxCreatedTask) 
 /* 创建任务1 
 app_task1，任务函数
 "app_task1"，任务的名字
-128，分配给任务1的内存（栈）大小，单位为字
+512，分配给任务1的内存（栈）大小，单位为字
 7,优先级为7，数值不能超过（configMAX_PRIORITIES -1）
+app_task1_handle任务句柄
 */
 xReturn=xTaskCreate(app_task1,"app_task1",512,&app_task1_arg,7,&app_task1_handle);
 /*返回值
@@ -70,8 +122,23 @@ vTaskStartScheduler();
  vTaskDelete(Start_Task_Handle);
 ```
 
-
 ## 2.挂起恢复
+
+```c
+/*
+vTaskSuspend()
+任务可以通过调用 vTaskSuspend()函数都可以将处于任何状态的任务挂起，被挂起的任务得不到 CPU 的使用权，也不会参与调度，它相对于调度器而言是不可见的，除非它从挂起态中解除。
+
+vTaskSuspendAll()
+将所有的任务都挂起，就是挂起任务调度器。调度器被挂起后则不能进行上下文切换，但是中断还是使能的。 当调度器被挂起的时候，如果有中断需要进行上下文切换， 那么这个中断将会被挂起，在调度器恢复之后才响应这个中断。
+
+vTaskResume()
+任务恢复就是让挂起的任务重新进入就绪状态，恢复的任务会保留挂起前的状态信息，在恢复的时候根据挂起时的状态继续运行。
+
+xTaskResumeFromISR(）
+xTaskResumeFromISR()与 vTaskResume()一样都是用于恢复被挂起的任务，不一样的是 xTaskResumeFromISR() 专门用在中断服务程序中。无论通过调用一次或多次vTaskSuspend()函数而被挂起的任务，也只需调用一次xTaskResumeFromISR()函数即可解挂。要想使用该函数必须在FreeRTOSConfig.h中把INCLUDE_vTaskSuspend和INCLUDE_vTaskResumeFromISR 都定义为 1 才有效。任务还没有处于挂起态的时候，调用xTaskResumeFromISR()函数是没有任何意义的
+*/
+```
 
 ###  2.1挂起任务
 
@@ -87,11 +154,13 @@ vTaskSuspend(app_task2_handle);
 vTaskResume(app_task2_handle);	
 ```
 
-****
-
-
-
 ## 3.临界区
+
+```c
+/*
+一旦这部分代码开始执行，则不允许任何中断打扰。为确保临界段代码的执行，在进入临界段之前要关中断，而临界段代码执行完以后要立即开中断。
+*/
+```
 
 ### 3.1进入临界区
 
@@ -109,9 +178,19 @@ taskEXIT_CRITICAL();
 
 *****
 
-
-
 ## 4.消息队列
+
+```c
+/*
+消息队列传递的是实际数据，并不是数据地址，RTX，uCOS-II 和 uCOS-III 是传递的地址）放入到队列。
+同样，一个或者多个任务可以通过 RTOS 内核服务从队列中得到消息。通常，先进入消息队列的消息先传
+给任务，也就是说，任务先得到的是最先进入到消息队列的消息，即先进先出的原则（FIFO），FreeRTOS
+的消息队列支持 FIFO 和 LIFO 两种数据存取方式。
+使用消息队列可以让 RTOS 内核有效地管理任务，而全局数组是无法做到的，任务的超时等机制需要用户自己去实现。
+使用了全局数组就要防止多任务的访问冲突，而使用消息队列则处理好了这个问题，用户无需担心。
+使用消息队列可以有效地解决中断服务程序与任务之间消息传递的问题。
+*/
+```
 
 ### 4.1申请初始化消息队列
 
@@ -171,8 +250,6 @@ portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 if(pdPASS = xQueueSendFromISR(xQueue1,(void *)&g_uiCount,NULL));
 ```
 
-
-
 ### 4.3消息队列接受消息
 
 ```c
@@ -213,7 +290,22 @@ if(pdPASS == xQueueReceiveFromISR(xQueue,&buf, &xHigherPriorityTaskWoken ));
 if(pdPASS == xQueueReceiveFromISR(xQueue,&buf, NULL ));
 ```
 
-###  4.4注意事项
+### 4.4查询消息个数
+
+```c
+/*
+uxQueueMessagesWaiting
+用于查询队列中当前有效数据单元个数。切记不要在中断服务例程中调用 uxQueueMessagesWaiting()。应当在中断服务中
+使用其中断安全版本 uxQueueMessagesWaitingFromISR()。
+*/
+//零表示队列为空
+UBaseType_t uxQueueMessagesWaiting( const QueueHandle_t xQueue )
+UBaseType_t uxQueueMessagesWaitingFromISR( const QueueHandle_t xQueue )    
+```
+
+
+
+###  4.5注意事项
 
 ```c
 /*
@@ -331,8 +423,6 @@ UBaseType_t uxSemaphoreGetCount( SemaphoreHandle_t xSemaphore );
 TaskHandle_t xSemaphoreGetMutexHolder( SemaphoreHandle_t xMutex );
 ```
 
-
-
 ### 5.5注意事项
 
 ```c
@@ -409,15 +499,13 @@ xTimerStartFromISR( xBacklightTimer, &xHigherPriorityTaskWoken )
 BaseType_t xTimerStop( TimerHandle_t xTimer, 
                       TickType_t xBlockTime )
 //示例
-    
+xTimerStop(xTimer, 0);
 //在中断中停止计时器
 BaseType_t xTimerStopFromISR( TimerHandle_t xTimer, BaseType_t *pxHigherPriorityTaskWoken )  
 //示例
 BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 xTimerStopFromISR(xTimer,&xHigherPriorityTaskWoken)
 ```
-
-
 
 ### 6.5重启软件定时器
 
@@ -466,7 +554,8 @@ xTimerChangePeriod)(timer_handle, 1000, 0);
 BaseType_t xTaskNotify( TaskHandle_txTaskToNotify,  
                            uint32_t ulValue,  
                            eNotifyAction eAction); 
-//宏替换函数：xTaskNotifyGive(TaskHandle_txTaskToNotify);  
+//宏替换函数：
+xTaskNotifyGive(TaskHandle_txTaskToNotify);  
 //示例：
 /*向prvTask2(),发送通知，使其解除阻塞状态 */  
  xTaskNotifyGive( xTask2 );  
@@ -679,7 +768,7 @@ uxBits = xEventGroupWaitBits(EventGroupHandle,
 uxBits = xEventGroupWaitBits(EventGroupHandle,
 							BIT_0 | BIT_1,//等待bit0和bit1（与同步） 等待bit0或bit1置1（或同步）
 							pdTRUE,
-							pdTRUE,//或同步，只要其中一个bit置1，就直接返回
+							pdTRUE,//与同步，所有置一，就直接返回
 							portMAX_DELAY//一直等待
 							);
 ```
