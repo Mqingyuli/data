@@ -28,6 +28,11 @@ git
 */
 ```
 
+```c
+SC7A20驱动 master分支： https://spidersens.ddns.net:17990/scm/em/drivers_sc7a20.git
+SX1268驱动 master分支： https://spidersens.ddns.net:17990/scm/em/drivers_sx126x.git
+```
+
 
 
 # 2.git命令
